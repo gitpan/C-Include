@@ -330,6 +330,13 @@ INTERNAL REMARKS
         print $include->{root}{name};
         print $include->{files}[$_]{name} for 0..99;
 
+    8. For parsing progress indicating, need switch a flag 'TEST' to '1':
+
+        use C::Include;
+        $C::Include::TEST = 1;
+
+        my $include = new C::Include( 'data/database.h', -cache )
+
 AUTHOR
       Albert N. MICHEEV
       email: Albert@f80.n5049.z2.fidonet.org

@@ -18,6 +18,9 @@
 #
 # 1.30 (24 Jun 2000)  make_struct modificated
 #
+# 1.40 (30 May 2001)  allowed anonymous enum 
+#                     allowed synonym defining via 'typedef' keyword
+
 package C::Include::Struct;
 package C::Include;
 
@@ -27,7 +30,7 @@ use IO::File;
 use Storable 0.6.7.1;
 use vars qw/$VERSION %TYPES %ALIASES %INC $TEST/;
 
-$VERSION = 1.30;
+$VERSION = 1.40;
 
 $TEST = 0;
 
@@ -178,7 +181,8 @@ sub parse() {
 
         return $result;
     };
-    
+
+    local $\ = "\n" if $TEST;
 
     # Parsing
     my ($skip, $code);
@@ -233,9 +237,21 @@ sub parse() {
     while( my $line = shift @lines ){
         $line =~ s/^\s+//o; $line =~ s/\s+$//o;
 
+        if( $line =~ /^typedef \s+ (.+?) \s+ (\w+) $ /xo ){
+            print 'TYPEDEF: ', $2, ' == ', $1 if $TEST;
+
+            if( exists $self->{struct}{$1} ){
+                $self->{struct}{$2} = $self->{struct}{$1};
+            }elsif( exists $self->{typedef}{$1} ){
+                $self->{typedef}{$2} = $self->{typedef}{$1};
+            }
+        }
+
         # ENUM definition 
-        if( $line =~ /^ enum \s+ (\w+) \s* \{$ /xo ){
-            print 'ENUM: ', $1 if $TEST;
+        elsif( $line =~ /^ (?:typedef \s+)? enum (?: \s+(\w+) )? \s* \{$ /xo ){
+            print 'ENUM: ', $1||'<anonymous>' if $TEST;
+
+            $self->{typedef}{$1} = $self->{typedef}{int} if $1;
 
             my $items = shift @lines;
             $items =~ s/\}\s*$//o; $items =~ s/\s+//go;
@@ -243,12 +259,13 @@ sub parse() {
             my $counter = 0;
             foreach my $item ( split ',', $items ){
                 $counter = evalute($1) if $item =~ s/=(.+)$//o;
+                print 'ENUM VALUE: ', $item, '=', $counter if $TEST;
                 $define{$item} = $counter++;
             }
         }
 
         # BEGIN STRUCT definition 
-        elsif( $line =~ /^ (typedef \s+)? struct (?: \s+ (\w+) )? \s* \{$ /xo ){
+        elsif( $line =~ /^ (typedef \s+)? struct (?: \s+(\w+) )? \s* \{$ /xo ){
             unshift @structs, {};
             $structs[0]{''}{typedef}++ if $1;
             $structs[0]{''}{tag} = $2 if $2;
@@ -885,6 +902,13 @@ Do not delete and do not change them!:
     $\ = "\n";
     print $include->{root}{name};
     print $include->{files}[$_]{name} for 0..99;
+
+8. For parsing progress indicating, need switch a flag 'TEST' to '1':
+
+    use C::Include;
+    $C::Include::TEST = 1;
+
+    my $include = new C::Include( 'data/database.h', -cache )
 
 =head1 AUTHOR
 
