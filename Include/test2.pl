@@ -1,7 +1,7 @@
 use C::Include qw/test.h -cache/;
-use strict;
+use hiew;
 use vars qw/$node $buffer/;
-require 'hview.pl';
+use strict;
 
 # Make struct instance
 $node = INC->make_struct('Node');
@@ -18,4 +18,4 @@ $$node{flags}{umlautnet} = 1;
 $buffer = $node->pack();
 
 # Print buffer to STDOUT
-&hview( \$buffer );
+hiew( $buffer );

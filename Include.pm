@@ -1,7 +1,7 @@
 #####################################################################
 # Library       Include.pm
 # Title         C::Include
-# Version       1.20
+# Version       1.30
 # Author        Albert N. MICHEEV [Albert@f80.n5049.z2.fidonet.org]
 # Description   Miscelaneous routines for working with C/C++ like 
 #               header files as native Perl deep structs.
@@ -16,6 +16,8 @@
 #
 # 1.20 (04 Jun 2000)  Fixed for compatibility with ‘++  8-)
 #
+# 1.30 (24 Jun 2000)  make_struct modificated
+#
 package C::Include::Struct;
 package C::Include;
 
@@ -25,7 +27,7 @@ use IO::File;
 use Storable 0.6.7.1;
 use vars qw/$VERSION %TYPES %ALIASES %INC $TEST/;
 
-$VERSION = 1.20;
+$VERSION = 1.30;
 
 $TEST = 0;
 
@@ -74,7 +76,7 @@ sub new {
         local $_; my $param;
 
         while( $_ = shift ){
-            $param{ $param=$' } = '', next if /^\-/;
+            $param{ $param=$1 } = '', next if /^\-(.+)$/;
 
             $param = 'src' unless $param;
             die "Invalid parametr: '$param'" if $param ne 'src' and $param ne 'cache';
@@ -82,14 +84,14 @@ sub new {
             undef $param;
         }
 
-        $param{cache} = $`.'hp' if exists $param{cache} and
+        $param{cache} = $1.'.hp' if exists $param{cache} and
                                    not $param{cache} and
                                    not defined fileno( $param{src} ) and
-                                   $param{src} =~ /(?<=\.)h$/io;
+                                   $param{src} =~ /^(.*)\.h$/io;
     }
 
     # Reading compiled from cache file
-    if( $param{cache} and -e $param{cache} ){
+    if( $param{cache} and -f $param{cache} and -M $param{cache} < -M $param{src} ){
         $self = Storable::retrieve( $param{cache} );
         die "Version error!" unless $self->{''}{VERSION} == $VERSION;
 
@@ -99,7 +101,7 @@ sub new {
             my $file = $param{src};
             $param{src} = new IO::File( $file ) or die "Can't open file '$file'!\n";
         }
-        read $param{src}, $self->{source}, (stat $param{src})[7],0;
+        read $param{src}, $self->{source}, (stat $param{src})[7], 0;
         parse( $self );
         Storable::store($self, $param{cache}) if $param{cache};
     }
@@ -131,12 +133,11 @@ sub parse() {
 
     # Local evalution func
     local *evalute = sub($){
-        my $code = shift;
-        $code =~ s/ \b (0x[0-9a-f]+) [ul]+ \b /$1/geix;
-        while( my ($key, $value) = each %define ){
-            $key = '\b'.$key.'\b';
-            $value = 1 unless defined $value;  # $value ??= 1;
-            $code =~ s/$key/$value/ge;
+        my ($code, $key, $value) = shift;
+        $code =~ s/ \b (0x[0-9a-f]+) [ul]{0,2} \b /$1/gix;
+        while( ($key, $value) = each %define ){
+           $value = 1 unless defined $value;  # $value ??= 1;
+           $code =~ s/\b$key\b/$value/g;
         }
         return eval $code;
     };
@@ -198,7 +199,7 @@ sub parse() {
                 }elsif( $value and exists $self->{typedef}{$value} ){
                     $self->{typedef}{$word} = $self->{typedef}{$value};
                 }else{
-                    $define{$word} = defined $value ? evalute($value) : '';
+                    $define{$word} = defined $value ? evalute($value) : undef;
                 }
             }
             elsif ($word eq 'pragma') {
@@ -268,7 +269,7 @@ sub parse() {
             } grep { !/\*/ } split /,/, $line;
 
             # Compacting mask by counting repeated chars
-            1 while $$struct{''}{mask} =~ s/(?<=([b-z]))(\d+)?(\1+)(\d+)?/($2?$2:1)+length($3)+($4?$4-1:0)/geix;
+            1 while $$struct{''}{mask} =~ s/(?<=([b-y]))(\d+)?(\1+)(\d+)?/($2?$2:1)+length($3)+($4?$4-1:0)/geix;
 
             if( $$struct{''}{typedef} ){
                 die "WARNING: Unnamed typedef found!\n" unless @items;
@@ -365,7 +366,7 @@ sub parse() {
                 # sample type
                 if( exists $self->{typedef}{$type} ){
                     my $typedef = $self->{typedef}{$type};
-                    my $strdef  = $type eq 'char' ? $self->{typedef}{'string'}[0] : undef;
+                    my $strdef  = $type eq 'char' ? $self->{typedef}{zstring}[0] : undef;
                     $strdef = $$typedef[0] if not $strdef and ( $$typedef[0] eq 'a' or
                                                                 $$typedef[0] eq 'A' or
                                                                 $$typedef[0] eq 'Z' );
@@ -421,11 +422,11 @@ sub sizeof($){
 }
 
 
-sub make_struct($;$){
-    my ($self, $struct, $mix) = @_;
+sub make_struct($){
+    my ($self, $struct) = @_;
     die "WARNING: Can't make struct with unknown type: '$struct'!\n"
         unless exists $self->{struct}{$struct};
-    return new C::Include::Struct( $self->{struct}{$struct}, $mix );
+    return new C::Include::Struct( $self->{struct}{$struct} );
 }
 
 
@@ -443,12 +444,10 @@ use 5.005;
 use strict;
 use Storable;
 
-sub new($;$){
-    my ($class, $self, $mix) = @_;
+sub new($){
+    my ($class, $self) = @_;
     $self = Storable::dclone( $self );
     bless $self, $class;
-    $$self{''}{'unpack'} = $$self{''}{mask}, $$self{''}{'unpack'}=~ tr/a/A/ if $mix;
-    return $self;
 }
 
 sub pack(;$){
@@ -483,7 +482,7 @@ sub unpack($;$$){
     }
 
     my $i = 0;
-    ${$$self{''}{buffers}[$i++]} = $_ for unpack $$self{''}{'unpack'}||$$self{''}{mask}, $data;
+    ${$$self{''}{buffers}[$i++]} = $_ for unpack $$self{''}{mask}, $data;
 
     if( $$self{''}{bitsets} ){
         for my $item( @{$$self{''}{bitsets}} ){
@@ -499,6 +498,14 @@ sub unpack($;$$){
     }
 
     return 1;
+}
+
+sub link($$){
+    my ($self, $old, $new) = @_;
+
+    $old = \$self->{$old} unless ref $old;
+    $_ == $old and return $_ = $new for @{ $self->{''}{buffers} };
+    die "Can't relink!";
 }
 
 sub size(){ return shift->{''}{length} }
@@ -645,13 +652,9 @@ Return length of type in bytes.
     my $size_of_int = $include->sizeof(int);
     my $size_of_struct = $include->sizeof(HEADER_STRUCT);
 
-=item make_struct ( 'struct name', [string modificator] )
+=item make_struct ( 'struct name' )
 
 Returns a copy of the object C::Include::Struct - wrapper of structure.
-
-string modificator - param is valid if exists and not equal '0'. This option usefull when
-in zero padded string field free unused bytes fiiled with space (0x20) chars and make
-possible ignore them in unpack operation;
 
  Examples of usage:
 

@@ -1,24 +1,17 @@
 use C::Include qw/test.h -cache/;
+use hiew;
+use vars qw/$node $data/;
 use strict;
-use vars qw/$node $buffer/;
-require 'hview.pl';
-
-# Make struct instance
-$node = INC->make_struct('Node');
-
-$buffer = unpack 'u', <<'DATA';
-M`@"Y$U`````````````````````1````````````````````````````````
-M``````````````````!!;&)E<G0@36EC:&%U97(`````````````````````
-DATA
-
 
 print "Example of usage unpack/pack\n";
 
-# Unpack uuencoded buffer to struct
-$node->unpack( $buffer );
+$node = INC->make_struct('Node');   # Make struct instance
+$node->unpack( $data );             # Unpack buffer to struct
+$data=$node->pack();                # Pack struct to buffer
+hiew( $data );                      # Print buffer to STDOUT
 
-# Pack struct to buffer
-$buffer = $node->pack();
 
-# Print buffer to STDOUT
-&hview( \$buffer );
+BEGIN{$data=unpack 'u',<<'END';}
+M`@"Y$U`````````````````````1````````````````````````````````
+M``````````````````!!;&)E<G0@36EC:&%U97(`````````````````````
+END

@@ -1,7 +1,7 @@
 use C::Include;
-use strict;
+use hiew;
 use vars qw/$inc $file $buffer/;
-require 'hview.pl';
+use strict;
 
 $inc = new C::Include( \*DATA );
 
@@ -25,7 +25,7 @@ printf "Size of struct FILE: %d bytes\n",   $file->size;
 printf "Size of unsigned long: %d bytes\n", $inc->sizeof('unsigned long');
 
 # Print buffer to STDOUT
-&hview( \$buffer );
+hiew( $buffer );
 
 
 __DATA__
