@@ -1,0 +1,19 @@
+NAME
+    C::Include - Miscelaneous routines for working with C/C++ like 
+    header files as native Perl deep structs.
+
+SYNOPSIS
+    use C::Include;
+    my $include = new C::Include( '/usr/src/include.h', -cache );
+
+DESCRIPTION
+    Package to operate with binary data via describe C/C++ like structs.
+
+NOTES
+    Require module Storable.pm
+
+    Copyright (c) 2000, Albert MICHEEV
+
+AUTHOR
+    Albert MICHEEV <Albert@f80.n5049.z2.fidonet.org>
+
